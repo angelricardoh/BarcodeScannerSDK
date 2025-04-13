@@ -31,6 +31,7 @@ public class BarcodeScannerSDKManager: NSObject {
         var handler: BarcodeScannerResultBlock?
         private var boundingBox = CAShapeLayer()
         var configuration: BarcodeConfiguration?
+        var queue: DispatchQueue?
         
         public override init() {
             self.captureSession = AVCaptureSession()
@@ -55,8 +56,10 @@ public class BarcodeScannerSDKManager: NSObject {
                     }
                     updateBoundingBox(transformedObject.corners)
                 }
-                guard let localHander = self.handler else { return }
-                localHander(stringValue, nil)
+                guard let localHander = self.handler, let localQueue = self.queue else { return }
+                localQueue.async {
+                    localHander(stringValue, nil)
+                }
             }
         }
         
@@ -101,53 +104,56 @@ public class BarcodeScannerSDKManager: NSObject {
         internalManager = BarcodeScannerSDKManagerInternal()
     }
     
-    public func startUpdates(view: UIView, configuration:BarcodeConfiguration, boundingBoxColor: UIColor = UIColor.red, codeTypes:[AVMetadataObject.ObjectType], handler: @escaping BarcodeScannerResultBlock) {
-        if (internalManager.captureSession?.isRunning == false) {
-            self.internalManager.view = view
-            self.internalManager.handler = handler
-            guard let view = internalManager.view else {
-                return
-            }
-    
-            view.backgroundColor = UIColor.black
-            DispatchQueue.main.async {
-                self.internalManager.setupBoundingBox(boundingBoxColor)
-            }
-            self.internalManager.configuration = configuration
-            
-            guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return }
-            let videoInput: AVCaptureDeviceInput
-            
-            do {
-                videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
-            } catch {
-                return
-            }
-            
-            if (internalManager.captureSession.canAddInput(videoInput)) {
-                internalManager.captureSession.addInput(videoInput)
-            } else {
-                failed()
-                return
-            }
-            
-            let metadataOutput = AVCaptureMetadataOutput()
-            
-            if (internalManager.captureSession.canAddOutput(metadataOutput)) {
-                internalManager.captureSession.addOutput(metadataOutput)
+    public func startUpdates(view: UIView, queue: DispatchQueue, configuration:BarcodeConfiguration, boundingBoxColor: UIColor = UIColor.red, codeTypes:[AVMetadataObject.ObjectType], handler: @escaping BarcodeScannerResultBlock) {
+        self.internalManager.queue = queue
+        queue.sync {
+            if (internalManager.captureSession?.isRunning == false) {
+                self.internalManager.view = view
+                self.internalManager.handler = handler
+                guard let view = internalManager.view else {
+                    return
+                }
                 
-                metadataOutput.setMetadataObjectsDelegate(internalManager, queue: DispatchQueue.main)
-                metadataOutput.metadataObjectTypes = codeTypes
-            } else {
-                failed()
-                return
+                view.backgroundColor = UIColor.black
+                DispatchQueue.main.async {
+                    self.internalManager.setupBoundingBox(boundingBoxColor)
+                }
+                self.internalManager.configuration = configuration
+                
+                guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return }
+                let videoInput: AVCaptureDeviceInput
+                
+                do {
+                    videoInput = try AVCaptureDeviceInput(device: videoCaptureDevice)
+                } catch {
+                    return
+                }
+                
+                if (internalManager.captureSession.canAddInput(videoInput)) {
+                    internalManager.captureSession.addInput(videoInput)
+                } else {
+                    failed()
+                    return
+                }
+                
+                let metadataOutput = AVCaptureMetadataOutput()
+                
+                if (internalManager.captureSession.canAddOutput(metadataOutput)) {
+                    internalManager.captureSession.addOutput(metadataOutput)
+                    
+                    metadataOutput.setMetadataObjectsDelegate(internalManager, queue: DispatchQueue.main)
+                    metadataOutput.metadataObjectTypes = codeTypes
+                } else {
+                    failed()
+                    return
+                }
+                
+                internalManager.previewLayer = AVCaptureVideoPreviewLayer(session: internalManager.captureSession)
+                internalManager.previewLayer.frame = view.layer.bounds
+                internalManager.previewLayer.videoGravity = .resizeAspectFill
+                view.layer.addSublayer(internalManager.previewLayer)
+                internalManager.captureSession.startRunning()
             }
-            
-            internalManager.previewLayer = AVCaptureVideoPreviewLayer(session: internalManager.captureSession)
-            internalManager.previewLayer.frame = view.layer.bounds
-            internalManager.previewLayer.videoGravity = .resizeAspectFill
-            view.layer.addSublayer(internalManager.previewLayer)
-            internalManager.captureSession.startRunning()
         }
     }
     
@@ -165,7 +171,9 @@ public class BarcodeScannerSDKManager: NSObject {
     }
     
     func failed() {
-        guard let localHander = internalManager.handler else { return }
-        localHander(nil, BarcodeError.notSupported)
+        guard let localHander = self.internalManager.handler, let localQueue = self.internalManager.queue else { return }
+        localQueue.async {
+            localHander(nil, BarcodeError.notSupported)
+        }
     }
 }

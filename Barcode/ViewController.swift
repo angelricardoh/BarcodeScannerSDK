@@ -14,6 +14,7 @@ class ViewController: UIViewController {
     var barcodeManager: BarcodeScannerSDKManager?
     @IBOutlet weak var previewView: UIView!
     @IBOutlet weak var barcodeOutputLabel: UILabel!
+    private let sessionQueue = DispatchQueue(label: "Capture Session Queue")
     
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -34,6 +35,7 @@ class ViewController: UIViewController {
         let configuration: BarcodeConfiguration = [.playSound, .vibration, .displayBoundingBox]
 
         barcodeManager?.startUpdates(view: self.previewView,
+                                     queue: sessionQueue,
                                      configuration:configuration,
                                      boundingBoxColor: UIColor.blue,
                                      codeTypes: allowedBarcodes,
