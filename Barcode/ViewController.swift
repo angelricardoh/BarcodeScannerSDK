@@ -16,9 +16,16 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
-        print("viewDidLoad")
         barcodeManager = BarcodeScannerSDKManager()
         barcodeManager?.startUpdates(view: self.previewView)
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        barcodeManager?.restartUpdates()
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        barcodeManager?.stopUpdates()
     }
 }
 
