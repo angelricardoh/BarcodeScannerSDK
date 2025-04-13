@@ -12,14 +12,17 @@ class ViewController: UIViewController {
     
     var barcodeManager: BarcodeScannerSDKManager?
     @IBOutlet weak var previewView: UIView!
+    @IBOutlet weak var barcodeOutputLabel: UILabel!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
         barcodeManager = BarcodeScannerSDKManager()
-        barcodeManager?.startUpdates(view: self.previewView, handler: {(value: String?, error: Error?) in
-            if let value = value {
-                print(value)
+        barcodeManager?.startUpdates(view: self.previewView, handler: {(stringValue: String?, error: Error?) in
+            if let localStringValue = stringValue {
+                DispatchQueue.main.async {
+                    self.barcodeOutputLabel.text = localStringValue
+                }
             }
         })
     }
@@ -30,6 +33,10 @@ class ViewController: UIViewController {
     
     override func viewWillDisappear(_ animated: Bool) {
         barcodeManager?.stopUpdates()
+    }
+    
+    @IBAction func restart(_ sender: Any) {
+        barcodeManager?.restartUpdates()
     }
 }
 
