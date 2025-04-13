@@ -8,15 +8,20 @@
 import AVFoundation
 import UIKit
 
+public typealias BarcodeScannerResultBlock = (_ result: String?, _ error: BarcodeError?) -> Void
+public enum BarcodeError: Error {
+    case notSupported
+    case unexpected
+}
+
 public class BarcodeScannerSDKManager: NSObject {
     class BarcodeScannerSDKManagerInternal: NSObject, AVCaptureMetadataOutputObjectsDelegate {
         var captureSession: AVCaptureSession!
         var previewLayer: AVCaptureVideoPreviewLayer!
         var view: UIView?
-        var manager: BarcodeScannerSDKManager?
+        var handler: BarcodeScannerResultBlock?
         
-        public init(_ manager: BarcodeScannerSDKManager) {
-            self.manager = manager;
+        public override init() {
             self.captureSession = AVCaptureSession()
         }
         
@@ -26,7 +31,8 @@ public class BarcodeScannerSDKManager: NSObject {
                 guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
                 guard let stringValue = readableObject.stringValue else { return }
                 AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
-                print(stringValue)
+                guard let localHander = self.handler else { return }
+                localHander(stringValue, nil)
             }
         }
     }
@@ -34,13 +40,13 @@ public class BarcodeScannerSDKManager: NSObject {
     var internalManager: BarcodeScannerSDKManagerInternal!
     public override init() {
         super.init()
-        internalManager = BarcodeScannerSDKManagerInternal(self)
+        internalManager = BarcodeScannerSDKManagerInternal()
     }
     
-    public func startUpdates(view: UIView) {
-        
+    public func startUpdates(view: UIView, handler: @escaping BarcodeScannerResultBlock) {
         if (internalManager.captureSession?.isRunning == false) {
             self.internalManager.view = view
+            self.internalManager.handler = handler
             guard let view = internalManager.view else {
                 return
             }
@@ -96,15 +102,7 @@ public class BarcodeScannerSDKManager: NSObject {
     }
     
     func failed() {
-        print("failed")
-        // TODO: Throw error
-//        let ac = UIAlertController(title: "Scanning not supported", message: "Your device does not support scanning a code from an item. Please use a device with a camera.", preferredStyle: .alert)
-//        ac.addAction(UIAlertAction(title: "OK", style: .default))
-//        present(ac, animated: true)
-//        captureSession = nil
-    }
-    
-    func found(code: String) {
-        print(code)
+        guard let localHander = internalManager.handler else { return }
+        localHander(nil, BarcodeError.notSupported)
     }
 }
