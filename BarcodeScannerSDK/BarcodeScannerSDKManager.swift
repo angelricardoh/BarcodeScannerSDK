@@ -13,6 +13,15 @@ public enum BarcodeError: Error {
     case notSupported
     case unexpected
 }
+public struct BarcodeConfiguration: OptionSet {
+    public let rawValue: Int
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+    public static let vibration = BarcodeConfiguration(rawValue: 1 << 0)
+    public static let playSound = BarcodeConfiguration(rawValue: 1 << 1)
+    public static let displayBoundingBox = BarcodeConfiguration(rawValue: 1 << 2)
+}
 
 public class BarcodeScannerSDKManager: NSObject {
     class BarcodeScannerSDKManagerInternal: NSObject, AVCaptureMetadataOutputObjectsDelegate {
@@ -20,6 +29,8 @@ public class BarcodeScannerSDKManager: NSObject {
         var previewLayer: AVCaptureVideoPreviewLayer!
         var view: UIView?
         var handler: BarcodeScannerResultBlock?
+        private var boundingBox = CAShapeLayer()
+        var configuration: BarcodeConfiguration?
         
         public override init() {
             self.captureSession = AVCaptureSession()
@@ -30,10 +41,57 @@ public class BarcodeScannerSDKManager: NSObject {
             if let metadataObject = metadataObjects.first {
                 guard let readableObject = metadataObject as? AVMetadataMachineReadableCodeObject else { return }
                 guard let stringValue = readableObject.stringValue else { return }
-                AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
+                guard let localConfiguration = configuration else { return }
+                if (localConfiguration.contains(.vibration)) {
+                    AudioServicesPlaySystemSound(SystemSoundID(kSystemSoundID_Vibrate))
+                }
+                if (localConfiguration.contains(.playSound)) {
+                    // 1057 is a standard SMS received sound
+                    AudioServicesPlaySystemSound(SystemSoundID(1057))
+                }
+                if (localConfiguration.contains(.displayBoundingBox)) {
+                    guard let transformedObject = previewLayer.transformedMetadataObject(for: readableObject) as? AVMetadataMachineReadableCodeObject else {
+                        return
+                    }
+                    updateBoundingBox(transformedObject.corners)
+                }
                 guard let localHander = self.handler else { return }
                 localHander(stringValue, nil)
             }
+        }
+        
+        fileprivate func setupBoundingBox(_ color: UIColor) {
+            guard let localView = self.view else {
+                return
+            }
+            boundingBox.frame = localView.layer.bounds
+            boundingBox.strokeColor = color.cgColor
+            boundingBox.lineWidth = 4.0
+            boundingBox.fillColor = UIColor.clear.cgColor
+
+            localView.layer.addSublayer(boundingBox)
+        }
+        
+        private func updateBoundingBox(_ points: [CGPoint]) {
+            guard let firstPoint = points.first else {
+                return
+            }
+            
+            let path = UIBezierPath()
+            path.move(to: firstPoint)
+            
+            var newPoints = points
+            newPoints.removeFirst()
+            newPoints.append(firstPoint)
+            
+            newPoints.forEach { path.addLine(to: $0) }
+            
+            boundingBox.path = path.cgPath
+            boundingBox.isHidden = false
+        }
+        
+        fileprivate func resetViews() {
+            boundingBox.isHidden = true
         }
     }
     
@@ -43,15 +101,19 @@ public class BarcodeScannerSDKManager: NSObject {
         internalManager = BarcodeScannerSDKManagerInternal()
     }
     
-    public func startUpdates(view: UIView, handler: @escaping BarcodeScannerResultBlock) {
+    public func startUpdates(view: UIView, configuration:BarcodeConfiguration, boundingBoxColor: UIColor = UIColor.red, codeTypes:[AVMetadataObject.ObjectType], handler: @escaping BarcodeScannerResultBlock) {
         if (internalManager.captureSession?.isRunning == false) {
             self.internalManager.view = view
             self.internalManager.handler = handler
             guard let view = internalManager.view else {
                 return
             }
-            
+    
             view.backgroundColor = UIColor.black
+            DispatchQueue.main.async {
+                self.internalManager.setupBoundingBox(boundingBoxColor)
+            }
+            self.internalManager.configuration = configuration
             
             guard let videoCaptureDevice = AVCaptureDevice.default(for: .video) else { return }
             let videoInput: AVCaptureDeviceInput
@@ -75,7 +137,7 @@ public class BarcodeScannerSDKManager: NSObject {
                 internalManager.captureSession.addOutput(metadataOutput)
                 
                 metadataOutput.setMetadataObjectsDelegate(internalManager, queue: DispatchQueue.main)
-                metadataOutput.metadataObjectTypes = [.ean8, .ean13, .pdf417]
+                metadataOutput.metadataObjectTypes = codeTypes
             } else {
                 failed()
                 return
@@ -92,6 +154,7 @@ public class BarcodeScannerSDKManager: NSObject {
     public func restartUpdates() {
         if (internalManager.captureSession?.isRunning == false) {
             internalManager.captureSession.startRunning()
+            internalManager.resetViews()
         }
     }
     
