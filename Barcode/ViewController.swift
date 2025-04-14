@@ -11,7 +11,7 @@ import AVFoundation
 
 class ViewController: UIViewController {
     
-    var barcodeManager: BarcodeScannerSDKManager?
+    var barcodeManager: BarcodeScannerManager?
     @IBOutlet weak var previewView: UIView!
     @IBOutlet weak var barcodeOutputLabel: UILabel!
     private let sessionQueue = DispatchQueue(label: "Capture Session Queue")
@@ -19,7 +19,7 @@ class ViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view.
-        barcodeManager = BarcodeScannerSDKManager()
+        barcodeManager = BarcodeScannerManager()
         let allowedBarcodes = [AVMetadataObject.ObjectType.upce,
                                        AVMetadataObject.ObjectType.code39,
                                        AVMetadataObject.ObjectType.code39Mod43,

@@ -1,5 +1,5 @@
 //
-//  BarcodeScannerSDKManager.swift
+//  BarcodeScannerManager.swift
 //  BarcodeScannerSDK
 //
 //  Created by Angel Ricardo Nieto Garcia on 4/12/25.
@@ -23,8 +23,8 @@ public struct BarcodeConfiguration: OptionSet {
     public static let displayBoundingBox = BarcodeConfiguration(rawValue: 1 << 2)
 }
 
-public class BarcodeScannerSDKManager: NSObject {
-    class BarcodeScannerSDKManagerInternal: NSObject, AVCaptureMetadataOutputObjectsDelegate {
+public class BarcodeScannerManager: NSObject {
+    class BarcodeScannerManagerInternal: NSObject, AVCaptureMetadataOutputObjectsDelegate {
         var captureSession: AVCaptureSession!
         var previewLayer: AVCaptureVideoPreviewLayer!
         var view: UIView?
@@ -98,11 +98,7 @@ public class BarcodeScannerSDKManager: NSObject {
         }
     }
     
-    var internalManager: BarcodeScannerSDKManagerInternal!
-    public override init() {
-        super.init()
-        internalManager = BarcodeScannerSDKManagerInternal()
-    }
+    var internalManager = BarcodeScannerManagerInternal()
     
     public func startUpdates(view: UIView, queue: DispatchQueue, configuration:BarcodeConfiguration, boundingBoxColor: UIColor = UIColor.red, codeTypes:[AVMetadataObject.ObjectType], handler: @escaping BarcodeScannerResultBlock) {
         self.internalManager.queue = queue
